@@ -3,10 +3,10 @@ __kernel void pi(
     __global double* step,
     __global float* sum)
 {
-    // Initialize local sum
+
     double local_sum = 0.0;
 
-    // Loop for integration
+
     for (long i = 0; i < *num_steps; i=i+8) {
         double x1 = (i + 0.5) * (*step);
         double x2 = (i +1+ 0.5) * (*step);
@@ -31,6 +31,5 @@ __kernel void pi(
         local_sum += 4.0 / (1.0 + x * x);
     }
 
-    // Write the local sum to the global memory
     *sum = local_sum;
 }
