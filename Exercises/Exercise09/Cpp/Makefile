@@ -5,7 +5,7 @@ endif
 
 CCFLAGS = -O3 -lrt
 
-LIBS = -lm
+LIBS = -lOpenCL -lrt
 
 CPP_COMMON = ../../Cpp_common
 
@@ -17,9 +17,13 @@ PLATFORM = $(shell uname -s)
 ifeq ($(PLATFORM), Darwin)
 	CPPC = clang++
 	CCFLAGS = -O3 -std=c++11 -stdlib=libc++
+	LIBS = -framework OpenCL
 endif
 
 pi: pi.cpp
+	$(CPPC) $^ $(INC) $(CCFLAGS) $(LIBS) -o $@
+
+pio: pio.cpp
 	$(CPPC) $^ $(INC) $(CCFLAGS) $(LIBS) -o $@
 
 clean:

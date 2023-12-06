@@ -16,6 +16,13 @@ History: Written by Tim Mattson, 11/99.
 */
 
 #include "util.hpp"
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <iostream>
+#include "cl.hpp"
+#include "device_picker.hpp"
+#include <err_code.h>
 
 #include <cstdio>
 static long num_steps = 100000000;
@@ -30,16 +37,57 @@ int main ()
 
 
     step = 1.0/(double) num_steps;
+    try{
+        cl_uint deviceIndex = 0;
 
-    util::Timer timer;
+        // Get list of devices
+        std::vector<cl::Device> devices;
+        unsigned numDevices = getDeviceList(devices);
+        // Check device index in range
+        if (deviceIndex >= numDevices)
+        {
+          std::cout << "Invalid device index (try '--list')\n";
+          return EXIT_FAILURE;
+        }
+        cl::Device device = devices[deviceIndex];
+        std::string name;
+        getDeviceName(device, name);
+        std::cout << "\nUsing OpenCL device: " << name << "\n";
+        std::vector<cl::Device> chosen_device;
+        chosen_device.push_back(device);
+        cl::Context context(chosen_device);
+        cl::CommandQueue queue(context, device);
 
-    for (i=1;i<= num_steps; i++){
-        x = (i-0.5)*step;
-        sum = sum + 4.0/(1.0+x*x);
+        cl::Buffer bufferNumSteps(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(cl_ulong), &num_steps);
+        cl::Buffer bufferStep(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(cl_double), &step);
+        cl::Buffer bufferSum(context, CL_MEM_WRITE_ONLY, sizeof(double));
+        
+        util::Timer timer;
+        
+        cl::Program program(context, util::loadProgram("pi.cl"), true);
+        
+        // Use cl::Buffer in the kernel declaration
+        cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer> picl(program, "pi");
+        
+        cl::NDRange global(1024);
+        
+        // Pass bufferSum as the kernel argument
+        picl(cl::EnqueueArgs(queue, global), bufferNumSteps, bufferStep, bufferSum);
+        
+        queue.finish();
+        
+        // Read the result back to the host
+        float result_sum;
+        queue.enqueueReadBuffer(bufferSum, CL_TRUE, 0, sizeof(double), &result_sum);
+        
+        double pi = step * result_sum;
+        double run_time = static_cast<double>(timer.getTimeMilliseconds()) / 1000.0;
+        printf("\n pi with %ld steps is %lf in %lf seconds\n", num_steps, pi, run_time);
+        
+
+    } catch(int n)
+    {
+        std::cout << "\nError";
     }
-
-    pi = step * sum;
-    double run_time = static_cast<double>(timer.getTimeMilliseconds()) / 1000.0;
-    printf("\n pi with %ld steps is %lf in %lf seconds\n", num_steps, pi, run_time);
 }
 

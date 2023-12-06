@@ -22,6 +22,7 @@
 #define __CL_ENABLE_EXCEPTIONS
 #include "cl.hpp"
 
+#include "util.hpp"
 
 #include "matrix_lib.hpp"
 

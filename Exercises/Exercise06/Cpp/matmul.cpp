@@ -33,6 +33,22 @@ std::string kernelsource = "__kernel void mmul(                                 
 "   __global float* B,                                                  \n" \
 "   __global float* C)                                                  \n" \
 "{                                                                      \n" \
+"   int k;                                                              \n" \
+"   int i = get_global_id(0);                                           \n" \
+"   int j = get_global_id(1);                                           \n" \
+"   float tmp;                                                          \n" \
+"   float Awrk[1024];                                                          \n" \
+"   for(k=0;k<N;k++)                                                         \n" \
+"   {                                                          \n" \
+"       Awrk[k]=A[i*N+k];                                                          \n" \
+"   }                                                          \n" \
+"   if ( (i < N) && (j <N))                                             \n" \
+"   {                                                                   \n" \
+"       tmp = 0.0;                                                      \n" \
+"       for(k=0;k<N;k++)                                                \n" \
+"           tmp += A[k] * B[k*N+j];                                 \n" \
+"       C[i*N+j] = tmp;                                                 \n" \
+"   }                                                                   \n" \
 "}                                                                      \n" \
 "\n";
 
@@ -130,10 +146,14 @@ int main(int argc, char *argv[])
         timer.reset();
 
         // Create the compute program from the source buffer
-        cl::Program program(context, kernelsource, true);
+        cl::Program program(context, util::loadProgram("mm.cl"), true);
+
+        cl::LocalSpaceArg localmem =
+                    cl::Local(sizeof(float) * ORDER);
+
 
         // Create the compute kernel from the program
-        cl::make_kernel<int, cl::Buffer, cl::Buffer, cl::Buffer> naive_mmul(program, "mmul");
+        cl::make_kernel<int, cl::Buffer, cl::Buffer, cl::Buffer, cl::LocalSpaceArg > naive_mmul(program, "mmul");
 
         printf("\n===== OpenCL, matrix mult, C(i,j) per work item, order %d ======\n",N);
 
@@ -148,9 +168,10 @@ int main(int argc, char *argv[])
             // a dot product for each element of the product matrix.  The local work
             // group size is set to NULL ... so I'm telling the OpenCL runtime to
             // figure out a local work group size for me.
-            cl::NDRange global(N, N);
-            naive_mmul(cl::EnqueueArgs(queue, global),
-                    N, d_a, d_b, d_c);
+            cl::NDRange global(N);
+            cl::NDRange local(ORDER / 16);
+            naive_mmul(cl::EnqueueArgs(queue, global,local),
+                    N, d_a, d_b, d_c,localmem);
 
             queue.finish();
 
